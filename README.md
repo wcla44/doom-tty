@@ -10,7 +10,12 @@ The id Software engine (via [doomgeneric](https://github.com/ozkl/doomgeneric)) 
 
 ![Title screen](screenshots/title.png)
 
-## Run
+## Download
+
+Every push to `main` publishes a static Linux x86_64 (musl) binary on the
+[releases page](https://github.com/wcla44/doom-tty/releases/latest).
+
+## Build and run
 
 You need a Rust toolchain, a C compiler and an IWAD. The shareware `doom1.wad` (episode 1) is freely
 distributable but not included:
