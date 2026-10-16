@@ -1,0 +1,4 @@
+/target
+/wad/*.wad
+.default.cfg
+*.dsg

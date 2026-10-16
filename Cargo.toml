@@ -1,0 +1,12 @@
+[package]
+name = "doom"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-2.0-only"
+description = "The original DOOM engine running in your terminal, with a Rust frontend"
+
+[dependencies]
+crossterm = "0.28"
+
+[build-dependencies]
+cc = "1.8.0"
