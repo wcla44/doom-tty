@@ -85,7 +85,7 @@ jobs:
           lipo -info dist/doom
           # only system libraries
           otool -L dist/doom
-          ! otool -L dist/doom | tail -n +2 | grep -vqE "^\s+/(usr/lib|System/Library)/"
+          ! otool -L dist/doom | grep -E "^\s" | grep -vqE "^\s+/(usr/lib|System/Library)/"
 
       - name: Package and upload
         run: |
