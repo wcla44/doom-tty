@@ -12,8 +12,10 @@ The id Software engine (via [doomgeneric](https://github.com/ozkl/doomgeneric)) 
 
 ## Download
 
-Every push to `main` publishes a static Linux x86_64 (musl) binary on the
-[releases page](https://github.com/wcla44/doom-tty/releases/latest).
+Each tagged version (`v*`) publishes prebuilt binaries on the
+[releases page](https://github.com/wcla44/doom-tty/releases/latest): a static Linux x86_64 (musl)
+build and a universal macOS build (Apple Silicon + Intel). On macOS, clear the quarantine flag of the
+unsigned binary with `xattr -d com.apple.quarantine doom`.
 
 ## Build and run
 

@@ -2,7 +2,7 @@ name: release
 
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
 
 permissions:
   contents: write
@@ -12,14 +12,30 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TARGET: x86_64-unknown-linux-musl
   CARGO_TERM_COLOR: always
+  GH_TOKEN: ${{ github.token }}
+  TAG: ${{ github.ref_name }}
 
 jobs:
-  build:
+  draft:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Create draft release
+        run: |
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft \
+            --verify-tag \
+            --title "$TAG" \
+            --notes "$TAG builds: static x86_64 Linux (musl) and universal macOS (Apple Silicon + Intel).
+
+          Bring your own IWAD: put \`doom1.wad\` in \`./wad/\` or run \`./doom -iwad path/to/doom1.wad\`."
+
+  linux:
+    needs: draft
+    runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Install musl toolchain
         run: |
@@ -37,25 +53,61 @@ jobs:
           file "$BIN"
           file "$BIN" | grep -qE "static(-pie)? linked"
 
-      - name: Package
+      - name: Package and upload
         run: |
           NAME="doom-tty-$TARGET"
           mkdir -p "dist/$NAME"
           cp "target/$TARGET/release/doom" LICENSE README.md "dist/$NAME/"
           tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
           (cd dist && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" "dist/$NAME.tar.gz" "dist/$NAME.tar.gz.sha256"
 
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
+  macos:
+    needs: draft
+    runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build arm64 and x86_64
         run: |
-          TAG="build-${GITHUB_RUN_NUMBER}"
-          SHORT="${GITHUB_SHA::7}"
-          gh release create "$TAG" \
-            --target "$GITHUB_SHA" \
-            --title "Build ${GITHUB_RUN_NUMBER} (${SHORT})" \
-            --notes "Static x86_64 Linux (musl) build of ${GITHUB_SHA}.
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
 
-          Bring your own IWAD: put \`doom1.wad\` in \`./wad/\` or run \`./doom -iwad path/to/doom1.wad\`." \
-            --latest \
-            dist/*.tar.gz dist/*.sha256
+      - name: Make universal binary
+        run: |
+          mkdir -p dist
+          lipo -create -output dist/doom \
+            target/aarch64-apple-darwin/release/doom \
+            target/x86_64-apple-darwin/release/doom
+          lipo -info dist/doom
+          # only system libraries
+          otool -L dist/doom
+          ! otool -L dist/doom | tail -n +2 | grep -vqE "^\s+/(usr/lib|System/Library)/"
+
+      - name: Package and upload
+        run: |
+          NAME="doom-tty-universal-apple-darwin"
+          mkdir -p "dist/$NAME"
+          cp dist/doom LICENSE README.md "dist/$NAME/"
+          tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
+          (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" "dist/$NAME.tar.gz" "dist/$NAME.tar.gz.sha256"
+
+  publish:
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        run: gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false --latest
+
+  cleanup:
+    # never leave a half-filled draft behind
+    needs: [linux, macos]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete draft
+        run: gh release delete "$TAG" -R "$GITHUB_REPOSITORY" --yes
